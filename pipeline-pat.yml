@@ -1,0 +1,124 @@
+trigger: none
+
+parameters:
+- name: Environment
+  type: string
+  values:
+  - prod
+  - non-prod
+
+- name: Operation
+  type: string
+  values:
+  - CREATE
+  - LIST
+
+variables: # Converting parameter to variable for conditional execution in the script
+  Env: ${{ parameters.Environment }} 
+  operation: ${{ parameters.Operation }} 
+  
+stages:
+  - stage: PAT_${{ variables.operation }}
+    jobs:
+      - job: ${{ variables.operation }}_PAT
+        pool:
+          name: '<your-agent-pool>'
+        steps:
+          - task: MicrosoftSecurityDevOps@1
+            displayName: 'Security Scan'
+
+          - task: AzureKeyVault@2
+            displayName: 'Retrieve secrets from Key Vault'
+            inputs:
+              azureSubscription: $(ServiceConnectionName)
+              KeyVaultName: $(KVName)
+              SecretsFilter: '*'
+              RunAsPreJob: true
+              
+          # Make scripts executable
+          - script: |
+              chmod +x scripts/*.sh
+              ls -al scripts/
+            displayName: 'Make scripts executable'
+
+        # Install requirements
+          - task: Bash@3
+            displayName: 'Install AzureCLI'
+            inputs:
+              targetType: 'inline'
+              script: |
+                sudo apt-get update
+                sudo apt-get install -y jq
+                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+          # PROD SP Script
+          - script: scripts/get_access_token.sh
+            displayName: 'Get Access token - PROD'
+            condition: eq(variables['Env'], 'prod')
+            env:
+              SP_APP_ID: $(sp-app-id)
+              CLIENT_SECRET: $(sp-secret-value)
+              AZ_TENANT_ID: $(az-tenant-id)
+
+          # NON_PROD SP Script
+          - script: scripts/get_access_token.sh
+            displayName: 'Get Access token - NON_PROD'
+            condition: eq(variables['Env'], 'non-prod')
+            env:
+              SP_APP_ID: $(sp-np-app-id)
+              CLIENT_SECRET: $(sp-np-secret-value)
+              AZ_TENANT_ID: $(az-tenant-id)
+
+          # List PATs
+          - script: scripts/list_pat.sh
+            displayName: List PATs
+            condition: eq(variables['operation'], 'LIST')
+            env:
+              DATABRICKS_URL: $(databricks-url)
+              ACCESS_TOKEN: $(access_token)
+              BUILD_ID: $(Build.BuildNumber)
+
+          # Generate PAT
+          - script: scripts/generate_pat.sh
+            displayName: 'Generate PAT'
+            condition: eq(variables['operation'], 'CREATE')
+            env:
+              DATABRICKS_URL: $(databricks-url)
+              ACCESS_TOKEN: $(access_token) # This variable is set in get_access_token.sh
+              DESCRIPTION: $(PATSecretName)
+              EXPIRY: $(TokenValidyDays)
+
+          - task: AzureCLI@2
+            displayName: 'Create/Update Key Vault Secret'
+            condition: eq(variables['operation'], 'CREATE')
+            inputs:
+              azureSubscription: $(ServiceConnectionName)
+              scriptType: 'bash'
+              scriptLocation: 'scriptPath'
+              scriptPath: 'scripts/update_kv.sh'
+              arguments: '$(KVName) $(PATSecretName) $(token_value) $(expiry_date_iso)'
+
+  - stage: SendEmail
+    dependsOn: PAT_${{ variables.operation }}
+    condition: eq(variables['operation'], 'CREATE')
+    jobs:
+      - job: CreateEmail
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            
+          # Install requirements
+          - script: |
+              python3 -m pip install --upgrade pip
+              pip3 install azure-communication-email
+            displayName: "Installing ACS Python module"
+
+            # Send email via ACS Client
+          - script: |
+              echo "Running python script..."
+              python3 scripts/send_email.py $(KVName) $(PATSecretName) $(databricks-url) $(RecipientEmail) $(SenderEmail)
+            displayName: "Send email via ACS Client"
+            env:
+              CONNECTION_STRING: $(MailClientConnectionString)
+              BUILD_ID: $(Build.BuildNumber)
