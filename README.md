@@ -1,5 +1,5 @@
 ## Introduction 
-Azure DevOps pipeline to CREATE and LIST Personal Access Tokens (PAT) for Databricks. The PAT will be jenerated based on the access provided to the below Service principals.
+Azure DevOps pipeline to CREATE and LIST Personal Access Tokens (PAT) for Databricks. The PAT will be generated based on the access provided to the service principals below.
 
 `Average run time: 2 mins`
 
@@ -13,6 +13,6 @@ Azure DevOps pipeline to CREATE and LIST Personal Access Tokens (PAT) for Databr
 
 ### Special Inputs/Runtime-Parameters required for each pipeline:
 1. **Databricks URL** - defaults to `prod` url
-2. **PAT Secret Name** - Need to mention a unique token name. The pipeline may fail if it detects another token active with the same name.
+2. **PAT Secret Name** - You must mention a unique token name. The pipeline may fail if it detects another active token with the same name.
 3. **Recipient Email** - set up desired email account.
 4. **Token Validity** - defaults to `180 days/ 6 months`
