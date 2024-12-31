@@ -28,7 +28,7 @@ def main():
                     <body>
                         <p>Dear User,</p>
                         <p>A Key Vault secret has been successfully created/updated following your recent pipeline execution with the Personal Access Token for the Databricks workspace {WorkspaceURL}. </p>
-                        <p>You can access the secret by clicking <a href='https://portal.azure.com/#@Coastalcommunitybank.onmicrosoft.com/asset/Microsoft_Azure_KeyVault/Secret/https://{KVName}.vault.azure.net/secrets/{SecretName}'>here</a>.</p>
+                        <p>You can access the secret by clicking <a href='https://portal.azure.com/#<UPDATE-WITH-YOUR-TENANT-NAME-HERE>.onmicrosoft.com/asset/Microsoft_Azure_KeyVault/Secret/https://{KVName}.vault.azure.net/secrets/{SecretName}'>here</a>.</p>
                         <p>Regards,<br>Azure DevOps Pipeline <br> (Build ID: {build_id})</p>
                     </body>
                     </html>"""
